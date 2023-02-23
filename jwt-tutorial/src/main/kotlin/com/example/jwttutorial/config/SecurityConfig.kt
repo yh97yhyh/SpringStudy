@@ -15,7 +15,7 @@ import org.springframework.web.filter.CorsFilter
 
 @EnableWebSecurity
 @Configuration
-class SecurityConfig(private val corsFilter: CorsFilter) {
+class SecurityConfig {
     @Bean
     fun passwordEncoder(): PasswordEncoder {
         return BCryptPasswordEncoder()
@@ -25,14 +25,20 @@ class SecurityConfig(private val corsFilter: CorsFilter) {
     @Throws(Exception::class)
     fun filterChain(httpSecurity: HttpSecurity): SecurityFilterChain {
         httpSecurity
+            .csrf().disable()
             // enable h2-console
             .headers()
             .frameOptions()
             .sameOrigin()
 
+            // 세션을 사용하지 않기 때문에 STATELESS로 설정
+            .and()
+            .sessionManagement()
+            .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+
             .and()
             .authorizeHttpRequests()
-            .requestMatchers("/api/hello").permitAll()
+            .antMatchers("/api/hello", "h2-console/**", "/favicon.ico", "/error").permitAll()
             .requestMatchers(PathRequest.toH2Console()).permitAll()
             .anyRequest().authenticated()
 
