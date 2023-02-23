@@ -1,5 +1,9 @@
 package com.example.jwttutorial.config
 
+import com.example.jwttutorial.jwt.JwtAccessDeniedHandler
+import com.example.jwttutorial.jwt.JwtAuthenticationEntryPoint
+import com.example.jwttutorial.jwt.JwtSecurityConfig
+import com.example.jwttutorial.jwt.TokenProvider
 import org.springframework.boot.autoconfigure.security.servlet.PathRequest
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -14,8 +18,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.filter.CorsFilter
 
 @EnableWebSecurity
+@EnableMethodSecurity
 @Configuration
-class SecurityConfig {
+class SecurityConfig(
+    private val tokenProvider: TokenProvider,
+    private val corsFilter: CorsFilter,
+    private val jwtAuthenticationEntryPoint: JwtAuthenticationEntryPoint,
+    private val jwtAccessDeniedHandler: JwtAccessDeniedHandler
+) {
     @Bean
     fun passwordEncoder(): PasswordEncoder {
         return BCryptPasswordEncoder()
@@ -25,8 +35,17 @@ class SecurityConfig {
     @Throws(Exception::class)
     fun filterChain(httpSecurity: HttpSecurity): SecurityFilterChain {
         httpSecurity
+            // token을 사용하는 방식이기 때문에 csrf를 disable합니다.
             .csrf().disable()
+
+            .addFilterBefore(corsFilter, UsernamePasswordAuthenticationFilter::class.java)
+
+            .exceptionHandling()
+            .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+            .accessDeniedHandler(jwtAccessDeniedHandler)
+
             // enable h2-console
+            .and()
             .headers()
             .frameOptions()
             .sameOrigin()
@@ -38,9 +57,13 @@ class SecurityConfig {
 
             .and()
             .authorizeHttpRequests()
-            .antMatchers("/api/hello", "h2-console/**", "/favicon.ico", "/error").permitAll()
+            .antMatchers("/api/hello", "h2-console/**", "/favicon.ico", "/error",
+                "/api/authenticate", "/api/signup").permitAll()
             .requestMatchers(PathRequest.toH2Console()).permitAll()
             .anyRequest().authenticated()
+
+            .and()
+            .apply(JwtSecurityConfig(tokenProvider))
 
         return httpSecurity.build()
     }
